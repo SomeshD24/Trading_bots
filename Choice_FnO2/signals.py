@@ -1,0 +1,287 @@
+import datetime
+from option_selector import round_nearest
+
+class SignalProcessor:
+    def __init__(self, state_manager, option_selector, order_manager, feed=None):
+        self.state_manager = state_manager
+        self.option_selector = option_selector
+        self.order_manager = order_manager
+        self.feed = feed
+
+    def process_tick(self, ltp):
+        state = self.state_manager.state
+        direction = state["direction"]
+        
+        # --- Option Take Profit Logic ---
+        if self.feed and state.get("legs"):
+            for leg_id, leg in list(state["legs"].items()):
+
+                # 1. Manage Short Option — Exit at <= 20 (buy back cheap)
+                if not leg.get("short_closed", False):
+                    short_t = self.feed.symbol_master.get_option_token(leg['short_opt']['expiry'], leg['short_opt']['strike'], leg['short_opt']['type'])
+                    short_sym = self.feed.symbol_master.get_symbol(short_t) if short_t else f"NIFTY_{leg['short_opt']['strike']}_{leg['short_opt']['type']}"
+                    short_ltp = self.feed.prices.get(short_sym)
+
+                    if short_ltp is not None and short_ltp <= 20:
+                        self.order_manager.place_market_order(short_sym, "BUY", price_hint=short_ltp)
+                        leg["short_closed"] = True
+                        # Lock in short PnL — overrides any stale hist_short_pnl
+                        leg["hist_short_pnl"] = leg.get("hist_short_pnl", 0.0) + (leg['short_opt']['premium'] - short_ltp) * 65
+                        print(f"[{leg_id}] Short option TP hit: exit at {short_ltp} | Locked PnL: {round(leg['hist_short_pnl'], 2)}")
+                        self.state_manager.save()
+
+                # 2. Manage Long Option — Exit at >= 90, THEN roll to new ~10 Rs option
+                #    Guard: if leg['long_opt'] is already the newly rolled option, its
+                #    price will be ~10 Rs and won't re-trigger. No extra flag needed.
+                long_t = self.feed.symbol_master.get_option_token(leg['long_opt']['expiry'], leg['long_opt']['strike'], leg['long_opt']['type'])
+                long_sym = self.feed.symbol_master.get_symbol(long_t) if long_t else f"NIFTY_{leg['long_opt']['strike']}_{leg['long_opt']['type']}"
+                long_ltp = self.feed.prices.get(long_sym)
+
+                if long_ltp is not None and long_ltp >= 90:
+                    print(f"[{leg_id}] Long option TP hit at {long_ltp}. Finding replacement BEFORE closing...")
+
+                    # STEP A — Find and BUY new long option first (never skip rollover)
+                    leg_dir = "ABOVE" if leg['long_opt']['type'] == "CE" else "BELOW"
+                    new_long_opt = self.option_selector.select_long_opt(ltp, leg_dir, state["weekly_expiry"])
+
+                    if not new_long_opt:
+                        # Cannot find replacement — skip this tick, try again next tick
+                        print(f"[{leg_id}] WARNING: Could not find replacement long option. Holding. Will retry next tick.")
+                        continue  # Do NOT sell old option yet
+
+                    # BUY new option first
+                    new_long_t = self.feed.symbol_master.get_option_token(new_long_opt['expiry'], new_long_opt['strike'], new_long_opt['type'])
+                    new_long_sym = self.feed.symbol_master.get_symbol(new_long_t) if new_long_t else f"NIFTY_{new_long_opt['strike']}_{new_long_opt['type']}"
+                    new_order = self.order_manager.place_market_order(new_long_sym, "BUY", price_hint=new_long_opt['premium'])
+                    print(f"[{leg_id}] Bought new long option {new_long_sym} @ {new_long_opt['premium']}")
+
+                    # STEP B — SELL old long option (lock profit)
+                    exit_ltp = self.feed.prices.get(long_sym, long_ltp)  # re-read fresh price
+                    self.order_manager.place_market_order(long_sym, "SELL", price_hint=exit_ltp)
+                    locked_pnl = (exit_ltp - leg['long_opt']['premium']) * 65
+                    print(f"[{leg_id}] Sold old long option {long_sym} @ {exit_ltp} | Locked PnL: {round(locked_pnl, 2)}")
+
+                    # STEP C — Accumulate into hist_long_pnl (used by close_leg)
+                    leg["hist_long_pnl"] = leg.get("hist_long_pnl", 0.0) + locked_pnl
+
+                    # STEP D — Update leg to new option
+                    new_long_opt["order_id"] = new_order["order_id"]
+                    new_long_opt["side"] = "BUY"
+                    leg["long_opt"] = new_long_opt
+
+                    # Subscribe to new symbol price feed
+                    self.feed.subscribe_symbols([new_long_sym])
+                    self.state_manager.save()
+        # --------------------------------
+        
+        if state["base"] is None:
+            state["base"] = round_nearest(ltp, 10)
+            self.state_manager.save()
+            
+        base = state["base"]
+
+        # If FLAT, check if we need to open the first leg
+        if state["direction"] == "FLAT":
+            if ltp >= base + 50:
+                self.open_leg(base + 50, ltp, "ABOVE", "SHORT")
+            elif ltp <= base - 50:
+                self.open_leg(base - 50, ltp, "BELOW", "LONG")
+
+        # Handle ABOVE (LONG) trend
+        while state["direction"] == "ABOVE":
+            last_leg_id, last_leg = self.state_manager.get_last_leg()
+            if not last_leg:
+                break
+                
+            trigger = last_leg.get("trigger_price", last_leg["entry_price"])
+                
+            if ltp >= trigger + 50:
+                self.open_leg(trigger + 50, ltp, "ABOVE", "SHORT")
+            elif ltp <= trigger - 50:
+                self.close_leg(last_leg_id, ltp)
+                # Check if no legs left
+                if not self.state_manager.state["legs"]:
+                    state["direction"] = "FLAT"
+                    self.state_manager.save()
+                    break
+            else:
+                break
+
+        # Handle BELOW (SHORT) trend
+        while state["direction"] == "BELOW":
+            last_leg_id, last_leg = self.state_manager.get_last_leg()
+            if not last_leg:
+                break
+                
+            trigger = last_leg.get("trigger_price", last_leg["entry_price"])
+                
+            if ltp <= trigger - 50:
+                self.open_leg(trigger - 50, ltp, "BELOW", "LONG")
+            elif ltp >= trigger + 50:
+                self.close_leg(last_leg_id, ltp)
+                # Check if no legs left
+                if not self.state_manager.state["legs"]:
+                    state["direction"] = "FLAT"
+                    self.state_manager.save()
+                    break
+            else:
+                break
+
+
+    def open_leg(self, target_level, actual_ltp, direction, future_side):
+        state = self.state_manager.state
+        
+        trigger_price = target_level
+        entry_price = actual_ltp
+        
+        # Parse monthly expiry to format it like "28 JUL"
+        import datetime as dt
+        try:
+            m_exp = dt.datetime.strptime(state["monthly_expiry"], "%Y-%m-%d")
+            # Format expected by Choice CSV SecDesc: "NIFTY26JULFUT" (Year is last 2 digits)
+            fut_sym = f"NIFTY{m_exp.strftime('%y%b').upper()}FUT"
+        except Exception:
+            fut_sym = "NIFTY_FUT"
+            
+        # 1. Future order
+        fut_order = self.order_manager.place_market_order(fut_sym, future_side, price_hint=entry_price)
+        
+        # 2 & 3. Select options
+        short_opt = self.option_selector.select_short_opt(
+            actual_ltp, direction, state["monthly_expiry"], state["next_monthly_expiry"]
+        )
+        long_opt = self.option_selector.select_long_opt(
+            actual_ltp, direction, state["weekly_expiry"]
+        )
+        
+        if not short_opt or not long_opt:
+            print("Failed to find suitable options to open leg. Skipping.")
+            return
+
+        # Commit direction only after options are found
+        state["direction"] = direction
+
+        short_t = self.feed.symbol_master.get_option_token(short_opt['expiry'], short_opt['strike'], short_opt['type'])
+        short_sym = self.feed.symbol_master.get_symbol(short_t) if short_t else f"NIFTY_{short_opt['strike']}_{short_opt['type']}"
+        
+        long_t = self.feed.symbol_master.get_option_token(long_opt['expiry'], long_opt['strike'], long_opt['type'])
+        long_sym = self.feed.symbol_master.get_symbol(long_t) if long_t else f"NIFTY_{long_opt['strike']}_{long_opt['type']}"
+
+        # Short Opt order (sell)
+        short_order = self.order_manager.place_market_order(short_sym, "SELL", price_hint=short_opt['premium'])
+        # Long Opt order (buy)
+        long_order = self.order_manager.place_market_order(long_sym, "BUY", price_hint=long_opt['premium'])
+        
+        # 4. Save leg
+        state["total_legs_opened"] = state.get("total_legs_opened", 0) + 1
+        date_str = dt.datetime.now().strftime("%Y%m%d")
+        leg_id = f"L{state['total_legs_opened']}_{date_str}"
+        leg_data = {
+            "trigger_price": trigger_price,
+            "entry_price": entry_price,
+            "future_side": future_side,
+            "future_order_id": fut_order["order_id"],
+            "monthly_expiry": state["monthly_expiry"],
+            "short_opt": {
+                "strike": short_opt["strike"],
+                "type": short_opt["type"],
+                "expiry": short_opt["expiry"],
+                "premium": short_opt["premium"],
+                "order_id": short_order["order_id"],
+                "side": "SELL"
+            },
+            "long_opt": {
+                "strike": long_opt["strike"],
+                "type": long_opt["type"],
+                "expiry": long_opt["expiry"],
+                "premium": long_opt["premium"],
+                "order_id": long_order["order_id"],
+                "side": "BUY"
+            },
+            "status": "OPEN",
+            "entry_time": datetime.datetime.now().isoformat()
+        }
+        
+        self.state_manager.add_leg(leg_id, leg_data)
+        print(f"Opened Leg {leg_id} for direction {direction}")
+        
+        if self.feed:
+            self.feed.subscribe_symbols([fut_sym, short_sym, long_sym])
+
+    def close_leg(self, leg_id, ltp=None):
+        leg = self.state_manager.state["legs"][leg_id]
+        
+        pnl = 0.0
+        fut_price = ltp  # Use the current tick price as the definitive exit price
+        short_price = None
+        long_price = None
+        total_fut_pnl = 0.0
+        total_short_pnl = 0.0
+        total_long_pnl = 0.0
+        
+        if self.feed:
+            short_t = self.feed.symbol_master.get_option_token(leg['short_opt']['expiry'], leg['short_opt']['strike'], leg['short_opt']['type'])
+            short_sym = self.feed.symbol_master.get_symbol(short_t) if short_t else f"NIFTY_{leg['short_opt']['strike']}_{leg['short_opt']['type']}"
+            
+            long_t = self.feed.symbol_master.get_option_token(leg['long_opt']['expiry'], leg['long_opt']['strike'], leg['long_opt']['type'])
+            long_sym = self.feed.symbol_master.get_symbol(long_t) if long_t else f"NIFTY_{leg['long_opt']['strike']}_{leg['long_opt']['type']}"
+            
+            # Only fall back to feed.prices for options (not futures - we have ltp for that)
+            short_price = self.feed.prices.get(short_sym, leg['short_opt']['premium'])
+            long_price = self.feed.prices.get(long_sym, leg['long_opt']['premium'])
+            
+            # If ltp not provided, fall back to feed
+            if fut_price is None:
+                try:
+                    m_exp = datetime.datetime.strptime(leg["monthly_expiry"], "%Y-%m-%d")
+                    fut_sym = f"NIFTY{m_exp.strftime('%y%b').upper()}FUT"
+                except Exception:
+                    fut_sym = "NIFTY_FUT"
+                fut_price = self.feed.prices.get(fut_sym, leg['entry_price'])
+        else:
+            short_price = leg['short_opt']['premium']
+            long_price = leg['long_opt']['premium']
+            if fut_price is None:
+                fut_price = leg['entry_price']
+        
+        fut_pnl = (fut_price - leg['entry_price']) * 65 if leg['future_side'] == "LONG" else (leg['entry_price'] - fut_price) * 65
+        short_pnl = (leg['short_opt']['premium'] - short_price) * 65
+        long_pnl = (long_price - leg['long_opt']['premium']) * 65
+        
+        legacy_rollover = leg.get("realized_pnl", 0.0) - (leg.get("hist_fut_pnl", 0.0) + leg.get("hist_short_pnl", 0.0) + leg.get("hist_long_pnl", 0.0))
+        
+        total_fut_pnl = fut_pnl + leg.get("hist_fut_pnl", 0.0)
+        # hist_long_pnl already includes all locked profits from long option take-profit rollovers
+        # long_pnl here is only the unrealized PnL on the CURRENT long_opt since last rollover
+        total_short_pnl = short_pnl + leg.get("hist_short_pnl", 0.0)
+        total_long_pnl = long_pnl + leg.get("hist_long_pnl", 0.0) + legacy_rollover
+        
+        pnl = total_fut_pnl + total_short_pnl + total_long_pnl
+            
+        self.order_manager.close_position(leg)
+        
+        # Save to closed history
+        leg["close_time"] = datetime.datetime.now().isoformat()
+        leg["final_pnl"] = pnl
+        
+        if "closed_legs" not in self.state_manager.state:
+            self.state_manager.state["closed_legs"] = []
+        self.state_manager.state["closed_legs"].append({
+            "leg_id": leg_id,
+            "pnl": pnl,
+            "close_time": leg["close_time"]
+        })
+        self.state_manager.state["realized_pnl"] = self.state_manager.state.get("realized_pnl", 0.0) + pnl
+        
+        from logger import log_leg
+        leg["status"] = "CLOSED"
+        leg["future_exit"] = fut_price
+        leg["short_exit"] = short_price
+        leg["long_exit"] = long_price
+        leg["fut_pnl"] = total_fut_pnl
+        leg["short_pnl"] = total_short_pnl
+        leg["long_pnl"] = total_long_pnl
+        log_leg(leg_id, leg, pnl)
+        
+        self.state_manager.remove_leg(leg_id)
+        print(f"Closed Leg {leg_id} with PnL: {round(pnl, 2)}")

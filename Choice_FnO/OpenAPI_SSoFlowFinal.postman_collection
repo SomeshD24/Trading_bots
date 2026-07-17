@@ -1,0 +1,151 @@
+{
+	"info": {
+		"_postman_id": "1d372781-09ec-4f73-be24-74a439ca4d8f",
+		"name": "OpenAPI_SSoFlow",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "29433144"
+	},
+	"item": [
+		{
+			"name": "LoginTOTP",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "VendorId",
+						"value": "TRADEA1",
+						"type": "text"
+					},
+					{
+						"key": "VendorKey",
+						"value": "0DAZLDQRQMEGYDF9HZJE4IOTU2EY7AAA",
+						"type": "text"
+					},
+					{
+						"key": "Bearer",
+						"value": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg3NUE3MzQ4NkYwNDA4NDI1NEMwNUQzNzQyRDlDQUYxRTczQkI4QzkiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiIwOTMxNzRlYi1jNTQ1LTQ0NGUtYjA0OC1mNTBmYmQzZTI0NjQiLCJqdGkiOiJiZTc3N2FhMS1hZjllLTQ5ZGQtOTY3YS1iZTEwNWUyZTcwZTMiLCJpYXQiOjE3Mzk3OTEzNjAsIlVzZXJJZCI6IlgxNzI5NTgiLCJuYmYiOjE3Mzk3OTEzNjAsImV4cCI6MTc0MjM4MzM2MCwiaXNzIjoiRklOWCJ9.Om7Wu4FqMLFhNUP_PG2PJsgDQ72sihr4lhYM9UGdAF8AKlQwLbxp5LRTGZxxo_A14lK03zoARuE4GDbhjfFo6Mr0ljRCBnfqjsibmoFrAtZh3lYbrFf_3230YZm5TTA1bA3Im6LqRr-M6CYYgax53AurSSgmOoZ6RWZeZhAjtfc-v3QetuPAAnUtp_wMZO2RR_EBqMjkvAv1WZbGFQiWHYMUto4RZ3t-u5TRenOFvPWc02ao6E03LaRHU45azjI_dldaAoGhhALWD1TDY04cD4PCVBUn2oo7BNOUj7FEGDPypUJ4bZ9nw5rfgMrwnCKiiZ-hNk_A26CxKscXAAA",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"MobileNo\": \"sUhMsqrUI9Suk6EonnXG6B==\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://finx.choiceindia.com/api/OpenAPIV1/LoginTOTP",
+					"protocol": "https",
+					"host": [
+						"finx",
+						"choiceindia",
+						"com"
+					],
+					"path": [
+						"api",
+						"OpenAPIV1",
+						"LoginTOTP"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "ValidateTOTP",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "VendorId",
+						"value": "TRADEA1",
+						"type": "text"
+					},
+					{
+						"key": "VendorKey",
+						"value": "0DAZLDQRQMEGYDF9HZJE4IOTU2EY7AAA",
+						"type": "text"
+					},
+					{
+						"key": "Bearer",
+						"value": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg3NUE3MzQ4NkYwNDA4NDI1NEMwNUQzNzQyRDlDQUYxRTczQkI4QzkiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiIwOTMxNzRlYi1jNTQ1LTQ0NGUtYjA0OC1mNTBmYmQzZTI0NjQiLCJqdGkiOiJiZTc3N2FhMS1hZjllLTQ5ZGQtOTY3YS1iZTEwNWUyZTcwZTMiLCJpYXQiOjE3Mzk3OTEzNjAsIlVzZXJJZCI6IlgxNzI5NTgiLCJuYmYiOjE3Mzk3OTEzNjAsImV4cCI6MTc0MjM4MzM2MCwiaXNzIjoiRklOWCJ9.Om7Wu4FqMLFhNUP_PG2PJsgDQ72sihr4lhYM9UGdAF8AKlQwLbxp5LRTGZxxo_A14lK03zoARuE4GDbhjfFo6Mr0ljRCBnfqjsibmoFrAtZh3lYbrFf_3230YZm5TTA1bA3Im6LqRr-M6CYYgax53AurSSgmOoZ6RWZeZhAjtfc-v3QetuPAAnUtp_wMZO2RR_EBqMjkvAv1WZbGFQiWHYMUto4RZ3t-u5TRenOFvPWc02ao6E03LaRHU45azjI_dldaAoGhhALWD1TDY04cD4PCVBUn2oo7BNOUj7FEGDPypUJ4bZ9nw5rfgMrwnCKiiZ-hNk_A26CxKscX0bjASDS",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"MobileNo\": \"9920990299\",\r\n  \"OTP\": \"494434\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://finx.choiceindia.com/api/OpenAPIV1/ValidateTOTP",
+					"protocol": "https",
+					"host": [
+						"finx",
+						"choiceindia",
+						"com"
+					],
+					"path": [
+						"api",
+						"OpenAPIV1",
+						"ValidateTOTP"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "GetClientLoginTOTP",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "VendorId",
+						"value": "TRADEA1,
+						"type": "text"
+					},
+					{
+						"key": "VendorKey",
+						"value": "0DAZLDQRQMEGYDF9HZJE4IOTU2EY7AAA",
+						"type": "text"
+					},
+					{
+						"key": "Bearer",
+						"value": "eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg3NUE3MzQ4NkYwNDA4NDI1NEMwNUQzNzQyRDlDQUYxRTczQkI4QzkiLCJ0eXAiOiJKV1QifQ.eyJzdWIiOiIwOTMxNzRlYi1jNTQ1LTQ0NGUtYjA0OC1mNTBmYmQzZTI0NjQiLCJqdGkiOiJiZTc3N2FhMS1hZjllLTQ5ZGQtOTY3YS1iZTEwNWUyZTcwZTMiLCJpYXQiOjE3Mzk3OTEzNjAsIlVzZXJJZCI6IlgxNzI5NTgiLCJuYmYiOjE3Mzk3OTEzNjAsImV4cCI6MTc0MjM4MzM2MCwiaXNzIjoiRklOWCJ9.Om7Wu4FqMLFhNUP_PG2PJsgDQ72sihr4lhYM9UGdAF8AKlQwLbxp5LRTGZxxo_A14lK03zoARuE4GDbhjfFo6Mr0ljRCBnfqjsibmoFrAtZh3lYbrFf_3230YZm5TTA1bA3Im6LqRr-M6CYYgax53AurSSgmOoZ6RWZeZhAjtfc-v3QetuPAAnUtp_wMZO2RR_EBqMjkvAv1WZbGFQiWHYMUto4RZ3t-u5TRenOFvPWc02ao6E03LaRHU45azjI_dldaAoGhhALWD1TDY04cD4PCVBUn2oo7BNOUj7FEGDPypUJ4bZ9nw5rfgMrwnCKiiZ-hNk_A26CxKscX0bjADS",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n  \"MobileNo\": \"sUhMsqrUI9Suk6EonnXG6B==\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://finx.choiceindia.com/api/OpenAPIV1/GetClientLoginTOTP",
+					"protocol": "https",
+					"host": [
+						"finx",
+						"choiceindia",
+						"com"
+					],
+					"path": [
+						"api",
+						"OpenAPIV1",
+						"GetClientLoginTOTP"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

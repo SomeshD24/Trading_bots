@@ -1,0 +1,13 @@
+streamlit
+pandas
+numpy
+python-dotenv
+websockets
+requests
+pytz
+schedule
+pycryptodome
+pypdf
+streamlit-autorefresh
+websocket-client
+pyarrow

@@ -1,0 +1,289 @@
+{
+    "base": 24500,
+    "direction": "BELOW",
+    "legs": {
+        "L1_20260707": {
+            "trigger_price": 24450,
+            "entry_price": 24448.0,
+            "future_side": "LONG",
+            "future_order_id": "9ca2fb5c-20ec-4e61-bc81-93e0c06f2214",
+            "monthly_expiry": "2026-07-28",
+            "short_opt": {
+                "strike": 24750,
+                "type": "CE",
+                "expiry": "2026-07-28",
+                "premium": 115.5,
+                "order_id": "e9337b01-ffb8-4957-8293-ab4d9a129852",
+                "side": "SELL"
+            },
+            "long_opt": {
+                "strike": 23050,
+                "type": "PE",
+                "expiry": "2026-07-21",
+                "premium": 11.800000190734863,
+                "order_id": "fd64c0cb-3678-40ab-aa99-3e243a0673bc",
+                "side": "BUY"
+            },
+            "status": "OPEN",
+            "entry_time": "2026-07-07T15:12:16.617306",
+            "realized_pnl": 997.7499999999999
+        },
+        "L2_20260708": {
+            "trigger_price": 24400,
+            "entry_price": 24266.6,
+            "future_side": "LONG",
+            "future_order_id": "28db26c2-7a11-449c-8c29-96f68d901705",
+            "monthly_expiry": "2026-07-28",
+            "short_opt": {
+                "strike": 24550,
+                "type": "CE",
+                "expiry": "2026-07-28",
+                "premium": 136.5,
+                "order_id": "5887b405-97a5-4e7a-8926-490f97fff55a",
+                "side": "SELL"
+            },
+            "long_opt": {
+                "strike": 23050,
+                "type": "PE",
+                "expiry": "2026-07-21",
+                "premium": 11.800000190734863,
+                "order_id": "21e2341e-61dd-4607-a9d5-a89084f074ad",
+                "side": "BUY"
+            },
+            "status": "OPEN",
+            "entry_time": "2026-07-08T10:18:48.802286",
+            "realized_pnl": -285.9999752044678
+        },
+        "L3_20260708": {
+            "trigger_price": 24350,
+            "entry_price": 24266.6,
+            "future_side": "LONG",
+            "future_order_id": "e28d0e6a-caa5-4fab-8007-e6836ae6cb8b",
+            "monthly_expiry": "2026-07-28",
+            "short_opt": {
+                "strike": 24550,
+                "type": "CE",
+                "expiry": "2026-07-28",
+                "premium": 136.5,
+                "order_id": "1da6573a-e9f4-466e-bdbc-1a637de662c4",
+                "side": "SELL"
+            },
+            "long_opt": {
+                "strike": 23050,
+                "type": "PE",
+                "expiry": "2026-07-21",
+                "premium": 11.800000190734863,
+                "order_id": "7b9cfe6b-14e5-4093-abd7-f2c7854215c5",
+                "side": "BUY"
+            },
+            "status": "OPEN",
+            "entry_time": "2026-07-08T10:18:49.766167",
+            "realized_pnl": -289.2499752044678
+        },
+        "L4_20260708": {
+            "trigger_price": 24300,
+            "entry_price": 24266.6,
+            "future_side": "LONG",
+            "future_order_id": "845741ff-9be4-48e7-b851-06db51ad72cf",
+            "monthly_expiry": "2026-07-28",
+            "short_opt": {
+                "strike": 24550,
+                "type": "CE",
+                "expiry": "2026-07-28",
+                "premium": 136.5,
+                "order_id": "d9b5c5f0-68ac-4690-99b2-ac4b4ab7f33c",
+                "side": "SELL"
+            },
+            "long_opt": {
+                "strike": 23050,
+                "type": "PE",
+                "expiry": "2026-07-21",
+                "premium": 11.800000190734863,
+                "order_id": "d48ec648-3764-4a95-9a52-92f43f874e89",
+                "side": "BUY"
+            },
+            "status": "OPEN",
+            "entry_time": "2026-07-08T10:18:50.365994",
+            "realized_pnl": -282.7500123977661
+        },
+        "L5_20260708": {
+            "trigger_price": 24250,
+            "entry_price": 24250.0,
+            "future_side": "LONG",
+            "future_order_id": "71b7793e-b0ac-489b-917f-ff075af4b099",
+            "monthly_expiry": "2026-07-28",
+            "short_opt": {
+                "strike": 24550,
+                "type": "CE",
+                "expiry": "2026-07-28",
+                "premium": 131.0500030517578,
+                "order_id": "a5189c73-705f-40d6-a081-f7f35f3c7b52",
+                "side": "SELL"
+            },
+            "long_opt": {
+                "strike": 23050,
+                "type": "PE",
+                "expiry": "2026-07-21",
+                "premium": 11.800000190734863,
+                "order_id": "ccbdf004-287a-4864-a567-0d02ffc3d8ee",
+                "side": "BUY"
+            },
+            "status": "OPEN",
+            "entry_time": "2026-07-08T12:15:03.031384",
+            "realized_pnl": -279.5
+        },
+        "L21_20260714": {
+            "trigger_price": 24200,
+            "entry_price": 24099.9,
+            "future_side": "LONG",
+            "future_order_id": "abcca690-91cb-4680-9401-4829b2427a50",
+            "monthly_expiry": "2026-07-28",
+            "short_opt": {
+                "strike": 24450,
+                "type": "CE",
+                "expiry": "2026-07-28",
+                "premium": 115.25,
+                "order_id": "00d76a86-5d58-42ef-a7b5-8b4bfbeea777",
+                "side": "SELL"
+            },
+            "long_opt": {
+                "strike": 23600,
+                "type": "PE",
+                "expiry": "2026-07-21",
+                "premium": 11.050000190734863,
+                "order_id": "250b17a3-0c82-4b65-9b3b-f3022d9bd394",
+                "side": "BUY"
+            },
+            "status": "OPEN",
+            "entry_time": "2026-07-14T10:35:29.067655"
+        }
+    },
+    "weekly_expiry": "2026-07-21",
+    "monthly_expiry": "2026-07-28",
+    "next_monthly_expiry": "2026-08-25",
+    "last_ltp": 24200.0,
+    "total_legs_opened": 29,
+    "closed_legs": [
+        {
+            "leg_id": "L1",
+            "pnl": 2434.25,
+            "close_time": "2026-07-07T11:22:30.327457"
+        },
+        {
+            "leg_id": "L13_20260708",
+            "pnl": 2314.0,
+            "close_time": "2026-07-08T14:51:46.885892"
+        },
+        {
+            "leg_id": "L12_20260708",
+            "pnl": 8742.499603271484,
+            "close_time": "2026-07-09T10:30:21.314317"
+        },
+        {
+            "leg_id": "L11_20260708",
+            "pnl": 6779.500185966492,
+            "close_time": "2026-07-09T10:30:21.317469"
+        },
+        {
+            "leg_id": "L10_20260708",
+            "pnl": 4634.499590873718,
+            "close_time": "2026-07-09T10:30:21.319089"
+        },
+        {
+            "leg_id": "L9_20260708",
+            "pnl": 3860.9997892378815,
+            "close_time": "2026-07-09T10:41:24.068858"
+        },
+        {
+            "leg_id": "L8_20260708",
+            "pnl": 5511.999814033414,
+            "close_time": "2026-07-09T10:42:00.107737"
+        },
+        {
+            "leg_id": "L15_20260709",
+            "pnl": 2492.7496156692505,
+            "close_time": "2026-07-09T11:26:22.355066"
+        },
+        {
+            "leg_id": "L17_20260709",
+            "pnl": 10861.499801635648,
+            "close_time": "2026-07-10T10:40:48.632260"
+        },
+        {
+            "leg_id": "L16_20260709",
+            "pnl": 8398.0,
+            "close_time": "2026-07-10T10:40:48.636280"
+        },
+        {
+            "leg_id": "L14_20260709",
+            "pnl": 8378.500000000095,
+            "close_time": "2026-07-10T10:40:48.638230"
+        },
+        {
+            "leg_id": "L7_20260708",
+            "pnl": 5102.5,
+            "close_time": "2026-07-10T10:40:48.639529"
+        },
+        {
+            "leg_id": "L6_20260708",
+            "pnl": 4780.750223159791,
+            "close_time": "2026-07-10T14:48:57.150948"
+        },
+        {
+            "leg_id": "L19_20260713",
+            "pnl": 2938.000173568726,
+            "close_time": "2026-07-13T12:14:01.718826"
+        },
+        {
+            "leg_id": "L18_20260713",
+            "pnl": 4907.500185966444,
+            "close_time": "2026-07-13T12:51:39.007697"
+        },
+        {
+            "leg_id": "L20_20260713",
+            "pnl": 2001.999888420105,
+            "close_time": "2026-07-13T14:15:32.655957"
+        },
+        {
+            "leg_id": "L24_20260714",
+            "pnl": 7309.24977684021,
+            "close_time": "2026-07-15T10:22:27.024489"
+        },
+        {
+            "leg_id": "L23_20260714",
+            "pnl": 5486.000123977567,
+            "close_time": "2026-07-15T10:22:27.026560"
+        },
+        {
+            "leg_id": "L22_20260714",
+            "pnl": 5486.000123977567,
+            "close_time": "2026-07-15T10:22:27.029379"
+        },
+        {
+            "leg_id": "L28_20260715",
+            "pnl": 3149.249876022434,
+            "close_time": "2026-07-15T12:58:37.575031"
+        },
+        {
+            "leg_id": "L27_20260715",
+            "pnl": 2470.000099182223,
+            "close_time": "2026-07-15T14:39:56.162660"
+        },
+        {
+            "leg_id": "L29_20260715",
+            "pnl": 9658.999987602234,
+            "close_time": "2026-07-16T10:57:21.114370"
+        },
+        {
+            "leg_id": "L26_20260715",
+            "pnl": 6142.499999999905,
+            "close_time": "2026-07-16T10:57:21.116560"
+        },
+        {
+            "leg_id": "L25_20260715",
+            "pnl": 2863.2498016357417,
+            "close_time": "2026-07-16T11:00:03.561887"
+        }
+    ],
+    "realized_pnl": 126704.49866104094
+}

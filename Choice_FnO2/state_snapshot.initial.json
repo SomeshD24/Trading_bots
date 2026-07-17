@@ -1,0 +1,12 @@
+{
+    "base": 24220,
+    "direction": "FLAT",
+    "legs": {},
+    "closed_legs": [],
+    "realized_pnl": 0.0,
+    "total_legs_opened": 0,
+    "weekly_expiry": "2026-07-21",
+    "monthly_expiry": "2026-07-28",
+    "next_monthly_expiry": "2026-08-25",
+    "last_ltp": 24218.0
+}
