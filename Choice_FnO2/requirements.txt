@@ -11,3 +11,4 @@ pypdf
 streamlit-autorefresh
 websocket-client
 pyarrow
+pycryptodome
