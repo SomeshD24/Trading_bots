@@ -4,3 +4,11 @@ __pycache__/
 .env
 state_snapshot.json
 logs/
+*.pdf
+*.exe
+*.zip
+*.postman_collection
+*.postman_collection.json
+*.spec
+*.txt
+*.csv
