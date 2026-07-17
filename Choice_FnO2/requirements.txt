@@ -2,7 +2,7 @@ streamlit
 pandas
 numpy
 python-dotenv
-websockets
+websocket-client
 requests
 pytz
 schedule
