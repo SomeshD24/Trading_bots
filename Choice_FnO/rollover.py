@@ -34,16 +34,19 @@ class RolloverManager:
                 f"NIFTY_{new_long_opt['strike']}_{new_long_opt['type']}", "BUY", price_hint=new_long_opt['premium']
             )
             
-            # Close old weekly long_opt
+            # Calculate realized PnL of old long_opt FIRST
             old_long = leg["long_opt"]
-            self.order_manager.place_market_order(
-                f"NIFTY_{old_long['strike']}_{old_long['type']}", "SELL"
-            )
-            
-            # Calculate realized PnL of old long_opt
             old_long_t = self.option_selector.feed.symbol_master.get_option_token(old_long['expiry'], old_long['strike'], old_long['type'])
             old_long_sym = self.option_selector.feed.symbol_master.get_symbol(old_long_t) if old_long_t else f"NIFTY_{old_long['strike']}_{old_long['type']}"
-            old_long_price = self.option_selector.feed.prices.get(old_long_sym, old_long['premium'])
+            
+            rest_prices = self.option_selector.feed.get_multiple_touchline([old_long_sym]) if old_long_t else {}
+            old_long_price = rest_prices.get(old_long_sym) or self.option_selector.feed.prices.get(old_long_sym, old_long['premium'])
+            
+            # Close old weekly long_opt
+            self.order_manager.place_market_order(
+                f"NIFTY_{old_long['strike']}_{old_long['type']}", "SELL", price_hint=old_long_price
+            )
+            
             long_pnl = (old_long_price - old_long['premium']) * 65
             leg["realized_pnl"] = leg.get("realized_pnl", 0.0) + long_pnl
             leg["hist_long_pnl"] = leg.get("hist_long_pnl", 0.0) + long_pnl
@@ -91,20 +94,23 @@ class RolloverManager:
                 continue
                 
             if leg["short_opt"]["expiry"] == current_month_expiry:
-                # Close old future + short_opt
-                fut_side_to_close = "SELL" if leg["future_side"] == "LONG" else "BUY"
-                self.order_manager.place_market_order("NIFTY_FUT_OLD", fut_side_to_close)
-                
-                short_side_to_close = "BUY" # we are short, so we buy back
                 old_short = leg["short_opt"]
-                self.order_manager.place_market_order(
-                    f"NIFTY_{old_short['strike']}_{old_short['type']}", short_side_to_close
-                )
                 
-                # Calculate realized PnL of old future and short_opt
+                # Calculate realized PnL of old future and short_opt FIRST
                 old_short_t = self.option_selector.feed.symbol_master.get_option_token(old_short['expiry'], old_short['strike'], old_short['type'])
                 old_short_sym = self.option_selector.feed.symbol_master.get_symbol(old_short_t) if old_short_t else f"NIFTY_{old_short['strike']}_{old_short['type']}"
-                old_short_price = self.option_selector.feed.prices.get(old_short_sym, old_short['premium'])
+                
+                rest_prices = self.option_selector.feed.get_multiple_touchline([old_short_sym]) if old_short_t else {}
+                old_short_price = rest_prices.get(old_short_sym) or self.option_selector.feed.prices.get(old_short_sym, old_short['premium'])
+                
+                # Close old future + short_opt
+                fut_side_to_close = "SELL" if leg["future_side"] == "LONG" else "BUY"
+                self.order_manager.place_market_order("NIFTY_FUT_OLD", fut_side_to_close, price_hint=current_ltp)
+                
+                short_side_to_close = "BUY" # we are short, so we buy back
+                self.order_manager.place_market_order(
+                    f"NIFTY_{old_short['strike']}_{old_short['type']}", short_side_to_close, price_hint=old_short_price
+                )
                 
                 fut_pnl = (current_ltp - leg['entry_price']) * 65 if leg['future_side'] == "LONG" else (leg['entry_price'] - current_ltp) * 65
                 short_pnl = (old_short['premium'] - old_short_price) * 65
