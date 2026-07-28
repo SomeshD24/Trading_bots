@@ -67,6 +67,8 @@ class RolloverManager:
     def perform_monthly_rollover(self, current_ltp):
         """
         Tuesday 3PM: roll future and short_opt to next month if their expiry is current_month_expiry.
+        Since all legs enter the new future at the exact same market starting price,
+        all rolled legs receive the same newly selected option strike for the next month.
         """
         state = self.state_manager.state
         current_month_expiry = state["monthly_expiry"]
@@ -75,7 +77,7 @@ class RolloverManager:
         
         any_leg_rolled = False
         
-        # 1. Calculate price shift between old future and new future
+        # 1. Calculate price shift and new future entry price
         shift = 0
         import datetime as dt
         try:
@@ -88,94 +90,116 @@ class RolloverManager:
                 print(f"Rollover Shift calculated: {shift} (Old LTP: {current_ltp}, New LTP: {new_fut_ltp})")
         except Exception as e:
             print(f"Error calculating rollover shift: {e}")
+            new_fut_ltp = None
             
+        new_entry = new_fut_ltp if new_fut_ltp else (current_ltp + shift)
+
+        # 2. Select unified new short option for next month (same strike across all rolled legs)
+        unified_new_short_opt = None
+        if direction != "FLAT":
+            atm = self.option_selector.get_atm_strike(new_entry)
+            opt_type = "PE" if direction == "ABOVE" else "CE"
+            step = -50 if direction == "ABOVE" else 50
+            target_strikes = [atm + (i * step) for i in range(30, 5, -1)]
+
+            s_strike, s_prem = self.option_selector._evaluate_short_opt_rest(target_strikes, opt_type, next_month_expiry)
+            if s_strike is not None:
+                unified_new_short_opt = {
+                    "strike": s_strike, "type": opt_type, "expiry": next_month_expiry, "premium": s_prem
+                }
+            else:
+                # Fallback for paper trading / mock feed
+                base_strike = atm - 300 if direction == "ABOVE" else atm + 300
+                unified_new_short_opt = {
+                    "strike": base_strike, "type": opt_type, "expiry": next_month_expiry, "premium": 150.0
+                }
+
+        # 3. Roll each open leg
         for leg_id, leg in state["legs"].items():
             if leg["status"] != "OPEN":
                 continue
                 
-            if leg["short_opt"]["expiry"] == current_month_expiry:
-                old_short = leg["short_opt"]
+            leg_monthly_exp = leg.get("monthly_expiry", current_month_expiry)
+            if leg_monthly_exp == current_month_expiry:
+                old_short = leg.get("short_opt", {})
                 
-                # Calculate realized PnL of old future and short_opt FIRST
-                old_short_t = self.option_selector.feed.symbol_master.get_option_token(old_short['expiry'], old_short['strike'], old_short['type'])
-                old_short_sym = self.option_selector.feed.symbol_master.get_symbol(old_short_t) if old_short_t else f"NIFTY_{old_short['strike']}_{old_short['type']}"
-                
-                rest_prices = self.option_selector.feed.get_multiple_touchline([old_short_sym]) if old_short_t else {}
-                old_short_price = rest_prices.get(old_short_sym) or self.option_selector.feed.prices.get(old_short_sym, old_short['premium'])
-                
-                # Close old future + short_opt
+                # Construct proper contract symbols for futures
+                try:
+                    m_old = dt.datetime.strptime(leg_monthly_exp, "%Y-%m-%d")
+                    old_fut_sym = f"NIFTY{m_old.strftime('%y%b').upper()}FUT"
+                except Exception:
+                    old_fut_sym = "NIFTY_FUT"
+
+                try:
+                    m_new = dt.datetime.strptime(next_month_expiry, "%Y-%m-%d")
+                    new_fut_sym = f"NIFTY{m_new.strftime('%y%b').upper()}FUT"
+                except Exception:
+                    new_fut_sym = "NIFTY_FUT"
+
+                # Close old future
                 fut_side_to_close = "SELL" if leg["future_side"] == "LONG" else "BUY"
-                self.order_manager.place_market_order("NIFTY_FUT_OLD", fut_side_to_close, price_hint=current_ltp)
-                
-                short_side_to_close = "BUY" # we are short, so we buy back
-                self.order_manager.place_market_order(
-                    f"NIFTY_{old_short['strike']}_{old_short['type']}", short_side_to_close, price_hint=old_short_price
-                )
+                self.order_manager.place_market_order(old_fut_sym, fut_side_to_close, price_hint=current_ltp)
                 
                 fut_pnl = (current_ltp - leg['entry_price']) * 65 if leg['future_side'] == "LONG" else (leg['entry_price'] - current_ltp) * 65
-                short_pnl = (old_short['premium'] - old_short_price) * 65
-                leg["realized_pnl"] = leg.get("realized_pnl", 0.0) + fut_pnl + short_pnl
                 leg["hist_fut_pnl"] = leg.get("hist_fut_pnl", 0.0) + fut_pnl
-                leg["hist_short_pnl"] = leg.get("hist_short_pnl", 0.0) + short_pnl
 
-                
+                # Close old short option if expiring this month
+                short_pnl = 0.0
+                if old_short.get("expiry") == current_month_expiry:
+                    old_short_t = self.option_selector.feed.symbol_master.get_option_token(old_short['expiry'], old_short['strike'], old_short['type']) if self.option_selector.feed.symbol_master else None
+                    old_short_sym = self.option_selector.feed.symbol_master.get_symbol(old_short_t) if old_short_t else f"NIFTY_{old_short['strike']}_{old_short['type']}"
+                    
+                    rest_prices = self.option_selector.feed.get_multiple_touchline([old_short_sym]) if old_short_t else {}
+                    old_short_price = rest_prices.get(old_short_sym) or self.option_selector.feed.prices.get(old_short_sym, old_short['premium'])
+                    
+                    short_side_to_close = "BUY"
+                    self.order_manager.place_market_order(
+                        old_short_sym, short_side_to_close, price_hint=old_short_price
+                    )
+                    short_pnl = (old_short['premium'] - old_short_price) * 65
+                    leg["hist_short_pnl"] = leg.get("hist_short_pnl", 0.0) + short_pnl
+
+                leg["realized_pnl"] = leg.get("realized_pnl", 0.0) + fut_pnl + short_pnl
+
                 # Apply the market spread shift to the grid levels (trigger)
                 new_trigger = leg.get("trigger_price", leg["entry_price"]) + shift
                 
-                # All legs enter the new future at the exact same market starting price
-                new_entry = new_fut_ltp if new_fut_ltp else (current_ltp + shift)
-                
                 # New future order
-                new_fut_order = self.order_manager.place_market_order("NIFTY_FUT_NEW", leg["future_side"], price_hint=new_entry)
+                new_fut_order = self.order_manager.place_market_order(new_fut_sym, leg["future_side"], price_hint=new_entry)
                 
-                # New short_opt calculation uses the actual entry market price
-                atm = self.option_selector.get_atm_strike(new_entry)
-                opt_type = "PE" if direction == "ABOVE" else "CE"
-                offset = -300 if direction == "ABOVE" else 300
-                base_strike = atm + offset
-                
-                # Try new target expiry
-                new_short_opt = None
-                premium = self.option_selector.feed.get_option_premium(base_strike, opt_type, next_month_expiry)
-                if premium > 100:
-                    new_short_opt = {
-                        "strike": base_strike, "type": opt_type, "expiry": next_month_expiry, "premium": premium
-                    }
-                else:
-                    current_strike = base_strike
-                    while True:
-                        premium = self.option_selector.feed.get_option_premium(current_strike, opt_type, next_month_expiry)
-                        if premium > 100:
-                            new_short_opt = {
-                                "strike": current_strike, "type": opt_type, "expiry": next_month_expiry, "premium": premium
-                            }
-                            break
-                        current_strike += -50 if direction == "ABOVE" else 50
-                        if abs(current_strike - atm) > 2000: break
+                # Subscribe feed to new future contract
+                if self.option_selector.feed:
+                    self.option_selector.feed.subscribe_symbols([new_fut_sym])
+                    self.option_selector.feed.active_symbols.add(new_fut_sym)
 
-                if not new_short_opt:
-                    print(f"Could not find new short opt for monthly rollover of {leg_id}")
-                    continue
-                    
-                new_short_order = self.order_manager.place_market_order(
-                    f"NIFTY_{new_short_opt['strike']}_{new_short_opt['type']}", "SELL", price_hint=new_short_opt['premium']
-                )
-                
+                # Open unified new short_opt for this leg if old short_opt was expiring
+                if old_short.get("expiry") == current_month_expiry and unified_new_short_opt:
+                    new_short_opt = dict(unified_new_short_opt)
+                    new_short_t = self.option_selector.feed.symbol_master.get_option_token(new_short_opt['expiry'], new_short_opt['strike'], new_short_opt['type']) if self.option_selector.feed.symbol_master else None
+                    new_short_sym = self.option_selector.feed.symbol_master.get_symbol(new_short_t) if new_short_t else f"NIFTY_{new_short_opt['strike']}_{new_short_opt['type']}"
+
+                    new_short_order = self.order_manager.place_market_order(
+                        new_short_sym, "SELL", price_hint=new_short_opt['premium']
+                    )
+                    new_short_opt["order_id"] = new_short_order["order_id"]
+                    new_short_opt["side"] = "SELL"
+                    leg["short_opt"] = new_short_opt
+
                 # Update State
-                log_rollover(leg["entry_price"], new_entry, old_short["strike"], new_short_opt["strike"], 
-                             f"NIFTY_{old_short['strike']}_{old_short['type']}", f"NIFTY_{new_short_opt['strike']}_{new_short_opt['type']}", next_month_expiry)
+                old_short_str = f"NIFTY_{old_short['strike']}_{old_short['type']}" if old_short else "N/A"
+                new_short_str = f"NIFTY_{leg['short_opt']['strike']}_{leg['short_opt']['type']}" if leg.get("short_opt") else "N/A"
+                log_rollover(leg["entry_price"], new_entry, old_short.get("strike", 0), leg.get("short_opt", {}).get("strike", 0), 
+                             old_short_str, new_short_str, next_month_expiry)
                 
                 leg["entry_price"] = new_entry
                 leg["trigger_price"] = new_trigger
                 leg["future_order_id"] = new_fut_order["order_id"]
                 leg["monthly_expiry"] = next_month_expiry
-                new_short_opt["order_id"] = new_short_order["order_id"]
-                new_short_opt["side"] = "SELL"
-                leg["short_opt"] = new_short_opt
                 
                 self.state_manager.update_leg(leg_id, leg)
                 any_leg_rolled = True
                 print(f"Monthly rollover completed for {leg_id}")
+
                 
         if any_leg_rolled:
             if state["base"] is not None:
@@ -185,8 +209,6 @@ class RolloverManager:
             from expiry_calc import get_current_and_next_monthly_expiries
             import datetime
             try:
-                # Calculate the NEXT next month's expiry to have it ready for the following month
-                # Just call the helper but feed it a date that is clearly in the next month
                 next_month_d = datetime.datetime.strptime(state["monthly_expiry"], "%Y-%m-%d").date() + datetime.timedelta(days=15)
                 _, next_next_exp = get_current_and_next_monthly_expiries(next_month_d)
                 state["next_monthly_expiry"] = next_next_exp.isoformat()

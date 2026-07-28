@@ -3,6 +3,16 @@ import calendar
 import requests
 from logger import logger
 
+import pytz
+
+def get_ist_now():
+    """Returns the current datetime in Indian Standard Time (Asia/Kolkata)."""
+    return datetime.datetime.now(pytz.timezone("Asia/Kolkata"))
+
+def get_ist_today():
+    """Returns today's date in Indian Standard Time (Asia/Kolkata)."""
+    return get_ist_now().date()
+
 # Holidays list (will be populated dynamically)
 NSE_HOLIDAYS = []
 
@@ -66,7 +76,7 @@ def get_weekly_expiry(base_date=None):
     Rule: From Monday onwards, buy the next weekly expiry (skip the immediate Tuesday if today is Mon/Tue).
     """
     if base_date is None:
-        base_date = datetime.date.today()
+        base_date = get_ist_today()
     
     d = base_date
     
@@ -86,7 +96,7 @@ def get_weekly_expiry(base_date=None):
 
 def get_current_and_next_monthly_expiries(current_date=None):
     if current_date is None:
-        current_date = datetime.date.today()
+        current_date = get_ist_today()
         
     current_expiry = get_monthly_expiry(current_date.year, current_date.month)
     
