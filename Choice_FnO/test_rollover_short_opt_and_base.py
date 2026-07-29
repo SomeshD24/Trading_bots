@@ -12,7 +12,7 @@ from rollover import RolloverManager
 from expiry_calc import get_current_and_next_monthly_expiries
 
 def test_short_opt_selection_order():
-    print("--- TEST 1: Short Option Search Order Starting from ATM +/- 6 ---")
+    print("--- TEST 1: Short Option Search Order (ATM ± 30 down to ATM ± 6) ---")
     
     # Mock feed with controlled touchline prices
     class MockFeed:
@@ -30,11 +30,9 @@ def test_short_opt_selection_order():
                 self.symbol_master.symbol_to_token[sym] = token
 
         def get_multiple_touchline(self, symbols):
-            # Return custom prices for test
             # ATM = 24100, ABOVE trend (opt_type = PE)
-            # i=6: 23800 PE -> premium 120 (> 100) -> should be selected first!
-            # i=7: 23750 PE -> premium 105 (> 100) -> was selected in old code because it checked i=30..6!
-            # i=5: 23850 PE -> premium 160 (> 100)
+            # i=7: 23750 PE -> premium 105 (> 100) -> selected first when evaluating from 30 down to 6!
+            # i=6: 23800 PE -> premium 120 (> 100)
             return {
                 "NIFTY_23800_PE": 120.0,
                 "NIFTY_23750_PE": 105.0,
@@ -44,16 +42,13 @@ def test_short_opt_selection_order():
     feed = MockFeed()
     opt_selector = OptionSelector(feed)
 
-    # Let's override _evaluate_short_opt_rest for direct verification
-    # When ATM = 24100, direction = "ABOVE", current_monthly_expiry = "2026-08-25"
-    # target_strikes evaluated in order: [23800, 23850, 23900, 23950, 24000, 24050, 24100]
     res = opt_selector.select_short_opt(24100, "ABOVE", "2026-08-25", "2026-09-29")
     print(f"Selected short option: {res}")
     
     assert res is not None, "Failed to select short option"
-    assert res["strike"] == 23800, f"Expected strike 23800 (ATM - 6 strikes), but got {res['strike']}"
-    assert res["premium"] == 120.0, f"Expected premium 120.0, but got {res['premium']}"
-    print("[OK] Short option search starting from ATM +/- 6 PASSED.")
+    assert res["strike"] == 23750, f"Expected strike 23750 (furthest OTM >= ATM-6 with premium > 100), but got {res['strike']}"
+    assert res["premium"] == 105.0, f"Expected premium 105.0, but got {res['premium']}"
+    print("[OK] Short option search (ATM ± 30 down to ATM ± 6) PASSED.")
 
 
 def test_monthly_rollover_base_update():

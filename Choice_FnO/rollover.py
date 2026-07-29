@@ -149,13 +149,13 @@ class RolloverManager:
         new_entry = new_fut_ltp if new_fut_ltp else (current_ltp + shift)
 
         # 2. Select unified new short option for next month (same strike across all rolled legs)
-        # Search starts from ATM ± 6 strikes (i=6) towards ATM (i=0) for first option with premium > 100
+        # Search from furthest OTM (ATM ± 30) down to base (ATM ± 6) for first option with premium > 100
         unified_new_short_opt = None
         if direction != "FLAT":
             atm = self.option_selector.get_atm_strike(new_entry)
             opt_type = "PE" if direction == "ABOVE" else "CE"
             step = -50 if direction == "ABOVE" else 50
-            target_strikes = [atm + (i * step) for i in range(6, -1, -1)]
+            target_strikes = [atm + (i * step) for i in range(30, 5, -1)]
 
             s_strike, s_prem = self.option_selector._evaluate_short_opt_rest(target_strikes, opt_type, next_month_expiry)
             if s_strike is not None:
