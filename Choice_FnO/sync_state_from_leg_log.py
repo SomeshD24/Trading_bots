@@ -4,9 +4,13 @@ import json
 
 def sync_state_from_leg_log():
     """
-    Scraped and updates state_snapshot.json ONLY for the current bot directory (Choice_FnO or Choice_FnO2).
+    Scrapes and updates state_snapshot.json ONLY for the current bot directory (Choice_FnO or Choice_FnO2).
     Keeps Choice_FnO and Choice_FnO2 states completely independent.
-    Treats L1, L2, L3 as rolled over legs and L52 as a fresh recent leg (no rollover).
+    Restores original pre-rollover entry prices:
+      - L1_20260707: original_entry_price = 24448.0 (entry_price = 23985.6 post-rollover)
+      - L2_20260708: original_entry_price = 24266.6 (entry_price = 23985.6 post-rollover)
+      - L3_20260708: original_entry_price = 24266.6 (entry_price = 23985.6 post-rollover)
+      - L52_20260729: original_entry_price = 24287.1 (fresh entry)
     """
     current_folder = os.path.dirname(os.path.abspath(__file__))
     state_file = os.path.join(current_folder, "state_snapshot.json")
@@ -60,15 +64,17 @@ def sync_state_from_leg_log():
     # Active open legs for this bot instance
     legs = state.get('legs', {})
     
-    # 1. Rolled over active legs (L1, L2, L3)
+    # 1. Rolled over active legs (L1, L2, L3) with pre-rollover original_entry_price
     rolled_over_pnl = {
-        'L1_20260707': {'fut': 52591.5, 'short': -20228.0, 'long': -11196.25, 'total': 21167.25},
-        'L2_20260708': {'fut': 64382.5, 'short': -20228.0, 'long': -12467.0, 'total': 31687.50},
-        'L3_20260708': {'fut': 64382.5, 'short': -20228.0, 'long': -12470.25, 'total': 31684.25}
+        'L1_20260707': {'orig_entry': 24448.0, 'fut': 52591.5, 'short': -20228.0, 'long': -11196.25, 'total': 21167.25},
+        'L2_20260708': {'orig_entry': 24266.6, 'fut': 64382.5, 'short': -20228.0, 'long': -12467.0, 'total': 31687.50},
+        'L3_20260708': {'orig_entry': 24266.6, 'fut': 64382.5, 'short': -20228.0, 'long': -12470.25, 'total': 31684.25}
     }
     
     for leg_id, pnl_info in rolled_over_pnl.items():
         if leg_id in legs:
+            legs[leg_id]['original_entry_price'] = pnl_info['orig_entry']
+            legs[leg_id]['entry_price'] = legs[leg_id].get('entry_price', 23985.6)
             legs[leg_id]['short_opt'] = {
                 'strike': 24750,
                 'type': 'CE',
@@ -84,6 +90,8 @@ def sync_state_from_leg_log():
 
     # 2. Fresh recent leg L52 (no rollover)
     if 'L52_20260729' in legs:
+        legs['L52_20260729']['original_entry_price'] = 24287.1
+        legs['L52_20260729']['entry_price'] = 24287.1
         legs['L52_20260729']['short_opt'] = {
             'strike': 24750,
             'type': 'CE',
