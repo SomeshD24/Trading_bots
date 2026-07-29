@@ -3,8 +3,8 @@ import os
 
 def fix_cloud_pnl_and_legs(state_file='state_snapshot.json'):
     """
-    Safely updates only the active leg PnL values in state_snapshot.json
-    without touching closed_legs, base, direction, or account realized_pnl.
+    Restores account-level realized_pnl (126704.50), closed_legs history,
+    and individual active leg PnLs.
     """
     if not os.path.exists(state_file):
         print(f"State file {state_file} not found.")
@@ -13,6 +13,21 @@ def fix_cloud_pnl_and_legs(state_file='state_snapshot.json'):
     with open(state_file, 'r') as f:
         state = json.load(f)
 
+    # 1. Restore account-level realized PnL
+    target_account_realized_pnl = 126704.49866104094
+    state['realized_pnl'] = target_account_realized_pnl
+
+    # 2. Restore closed_legs if missing or empty
+    initial_file = 'state_snapshot.initial.json'
+    if (not state.get('closed_legs') or len(state.get('closed_legs', [])) == 0) and os.path.exists(initial_file):
+        with open(initial_file, 'r') as f:
+            init_data = json.load(f)
+            if init_data.get('closed_legs'):
+                state['closed_legs'] = init_data['closed_legs']
+                state['total_legs_opened'] = init_data.get('total_legs_opened', 29)
+                print(f"Restored {len(state['closed_legs'])} closed legs from initial snapshot.")
+
+    # 3. Restore individual active leg PnLs
     active_leg_pnl_map = {
         'L1_20260707': {
             'hist_fut_pnl': 11225.5,
@@ -34,7 +49,6 @@ def fix_cloud_pnl_and_legs(state_file='state_snapshot.json'):
         }
     }
 
-    updated = False
     legs = state.get('legs', {})
     for leg_id, pnl_data in active_leg_pnl_map.items():
         if leg_id in legs:
@@ -42,15 +56,11 @@ def fix_cloud_pnl_and_legs(state_file='state_snapshot.json'):
             legs[leg_id]['hist_short_pnl'] = pnl_data['hist_short_pnl']
             legs[leg_id]['hist_long_pnl'] = pnl_data['hist_long_pnl']
             legs[leg_id]['realized_pnl'] = pnl_data['realized_pnl']
-            print(f"Restored PnL for {leg_id}: fut={pnl_data['hist_fut_pnl']}, short={pnl_data['hist_short_pnl']}, long={pnl_data['hist_long_pnl']}, total={pnl_data['realized_pnl']}")
-            updated = True
+            print(f"Restored PnL for {leg_id}: realized_pnl = {pnl_data['realized_pnl']}")
 
-    if updated:
-        with open(state_file, 'w') as f:
-            json.dump(state, f, indent=4)
-        print(f"Successfully updated active leg PnLs in {state_file} without touching any other state!")
-    else:
-        print("No matching active legs found to update.")
+    with open(state_file, 'w') as f:
+        json.dump(state, f, indent=4)
+    print(f"Successfully fixed account realized PnL ({target_account_realized_pnl}) and leg PnLs in {state_file}!")
 
 if __name__ == "__main__":
     fix_cloud_pnl_and_legs()
