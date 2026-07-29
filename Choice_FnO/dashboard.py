@@ -249,19 +249,18 @@ if state.get("legs"):
         else:
             fut_price = state.get("last_ltp", fut_price)
             
-        fut_pnl = (fut_price - ldata['entry_price']) * 65 if ldata['future_side'] == "LONG" else (ldata['entry_price'] - fut_price) * 65
-        short_pnl = (ldata['short_opt']['premium'] - short_price) * 65
-        long_pnl = (long_price - ldata['long_opt']['premium']) * 65
+        # 1. Unrealized PnL of current open position (post-rollover entry vs live price)
+        unrealized_fut = (fut_price - ldata['entry_price']) * 65 if ldata['future_side'] == "LONG" else (ldata['entry_price'] - fut_price) * 65
+        unrealized_short = (ldata['short_opt']['premium'] - short_price) * 65
+        unrealized_long = (long_price - ldata['long_opt']['premium']) * 65
+        unrealized_total = unrealized_fut + unrealized_short + unrealized_long
         
-        legacy_rollover = ldata.get("realized_pnl", 0.0) - (ldata.get("hist_fut_pnl", 0.0) + ldata.get("hist_short_pnl", 0.0) + ldata.get("hist_long_pnl", 0.0))
+        # 2. Realized Rollover PnL from past closes on this leg
+        leg_realized = ldata.get("realized_pnl", 0.0)
         
-        fut_pnl += ldata.get("hist_fut_pnl", 0.0)
-        short_pnl += ldata.get("hist_short_pnl", 0.0)
-        long_pnl += ldata.get("hist_long_pnl", 0.0) + legacy_rollover
-        
-        pnl = fut_pnl + short_pnl + long_pnl
-            
-        total_pnl += pnl
+        # 3. Total Leg PnL = Realized Rollover PnL + Unrealized Position PnL
+        total_leg_pnl = leg_realized + unrealized_total
+        total_pnl += total_leg_pnl
         
         # Calculate break even point
         try:
@@ -311,10 +310,11 @@ if state.get("legs"):
             "Long Entry": ldata.get("long_opt", {}).get("premium"),
             "Long Live": long_price,
             "Break Even": break_even,
-            "Future PnL": round(fut_pnl, 2),
-            "Short Opt PnL": round(short_pnl, 2),
-            "Long Opt PnL": round(long_pnl, 2),
-            "Total PnL": round(pnl, 2),
+            "Future PnL": round(unrealized_fut, 2),
+            "Short Opt PnL": round(unrealized_short, 2),
+            "Long Opt PnL": round(unrealized_long, 2),
+            "Leg Realized PnL": round(leg_realized, 2),
+            "Total PnL": round(total_leg_pnl, 2),
             "Entry Time": ldata.get("entry_time")
         })
 
