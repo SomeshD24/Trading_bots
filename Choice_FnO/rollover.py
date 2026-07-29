@@ -163,11 +163,27 @@ class RolloverManager:
                     "strike": s_strike, "type": opt_type, "expiry": next_month_expiry, "premium": s_prem
                 }
             else:
-                # Fallback starting from ATM ± 6 strikes (300pts OTM)
-                base_strike = atm + (6 * step)
-                unified_new_short_opt = {
-                    "strike": base_strike, "type": opt_type, "expiry": next_month_expiry, "premium": 150.0
-                }
+                # Search subsequent monthly expiries to find real option > 100 on real API data
+                import datetime as dt
+                from expiry_calc import get_monthly_expiry
+                try:
+                    curr_dt = dt.datetime.strptime(next_month_expiry, "%Y-%m-%d").date()
+                except Exception:
+                    curr_dt = dt.date.today()
+
+                for m_offset in range(1, 6):
+                    next_m = curr_dt.month % 12 + 1
+                    next_y = curr_dt.year + (1 if curr_dt.month == 12 else 0)
+                    far_exp = get_monthly_expiry(next_y, next_m).strftime("%Y-%m-%d")
+                    curr_dt = dt.date(next_y, next_m, 1)
+
+                    s_strike, s_prem = self.option_selector._evaluate_short_opt_rest(target_strikes, opt_type, far_exp)
+                    if s_strike is not None:
+                        unified_new_short_opt = {
+                            "strike": s_strike, "type": opt_type, "expiry": far_exp, "premium": s_prem
+                        }
+                        print(f"Selected short option from far month {far_exp}: {unified_new_short_opt}")
+                        break
 
         # 3. Roll each open leg
         for leg_id, leg in state["legs"].items():

@@ -143,6 +143,29 @@ class OptionSelector:
                 "expiry": next_monthly_expiry,
                 "premium": premium
             }
+
+        # Else, iterate through subsequent monthly expiries to find real option > 100
+        import datetime as dt
+        from expiry_calc import get_monthly_expiry
+        try:
+            curr_dt = dt.datetime.strptime(next_monthly_expiry, "%Y-%m-%d").date()
+        except Exception:
+            curr_dt = dt.date.today()
+
+        for m_offset in range(1, 6):
+            next_m = curr_dt.month % 12 + 1
+            next_y = curr_dt.year + (1 if curr_dt.month == 12 else 0)
+            far_exp = get_monthly_expiry(next_y, next_m).strftime("%Y-%m-%d")
+            curr_dt = dt.date(next_y, next_m, 1)
+
+            strike, premium = self._evaluate_short_opt_rest(target_strikes, opt_type, far_exp)
+            if strike is not None:
+                return {
+                    "strike": strike,
+                    "type": opt_type,
+                    "expiry": far_exp,
+                    "premium": premium
+                }
                 
         return None
 
