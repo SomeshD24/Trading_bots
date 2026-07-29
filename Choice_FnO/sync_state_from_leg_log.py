@@ -2,22 +2,39 @@ import os
 import csv
 import json
 
-def sync_state_from_leg_log(state_file='state_snapshot.json', log_file=None):
+def sync_state_from_leg_log(state_file=None, log_file=None):
     """
     Parses leg_log.csv (from logs/leg_log.csv or leg_log.csv) to automatically recalculate
     and restore account realized PnL, closed legs history, and active open leg cumulative PnLs.
-    Sets exact historical leg PnLs:
-      - L1: fut=52591.5, short=-20228.0, long=-11196.25 => realized=21167.25
-      - L2: fut=64382.5, short=-20228.0, long=-12467.0  => realized=31687.50
-      - L3: fut=64382.5, short=-20228.0, long=-12470.25 => realized=31684.25
-      - L52: fut=2171.0, short=-630.5, long=-13.0      => realized=1527.50
+    Dynamically resolves paths whether run from repo root or subfolder.
     """
-    possible_logs = [
-        log_file,
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # 1. Resolve state files
+    possible_state_files = []
+    if state_file:
+        possible_state_files.append(state_file)
+    possible_state_files.extend([
+        os.path.join(script_dir, "state_snapshot.json"),
+        os.path.join("Choice_FnO", "state_snapshot.json"),
+        os.path.join("Choice_FnO2", "state_snapshot.json"),
+        "state_snapshot.json"
+    ])
+
+    # 2. Resolve log files
+    possible_logs = []
+    if log_file:
+        possible_logs.append(log_file)
+    possible_logs.extend([
+        os.path.join(script_dir, "logs", "leg_log.csv"),
+        os.path.join(script_dir, "leg_log.csv"),
+        os.path.join("Choice_FnO", "logs", "leg_log.csv"),
+        os.path.join("Choice_FnO", "leg_log.csv"),
+        os.path.join("Choice_FnO2", "logs", "leg_log.csv"),
+        os.path.join("Choice_FnO2", "leg_log.csv"),
         os.path.join("logs", "leg_log.csv"),
-        "leg_log.csv",
-        os.path.join(r"c:\Choice_FnO", "leg_log.csv")
-    ]
+        "leg_log.csv"
+    ])
     
     target_log = None
     for p in possible_logs:
@@ -44,10 +61,18 @@ def sync_state_from_leg_log(state_file='state_snapshot.json', log_file=None):
                     })
                     total_realized_pnl += pnl
 
+    # Load existing state if available
     state = {}
-    if os.path.exists(state_file):
-        with open(state_file, 'r', encoding='utf-8') as f:
-            state = json.load(f)
+    target_state_file = possible_state_files[0]
+    for sf in possible_state_files:
+        if os.path.exists(sf):
+            try:
+                with open(sf, 'r', encoding='utf-8') as f:
+                    state = json.load(f)
+                target_state_file = sf
+                break
+            except Exception:
+                pass
 
     state['base'] = state.get('base', 24500)
     state['direction'] = state.get('direction', 'BELOW')
@@ -182,8 +207,17 @@ def sync_state_from_leg_log(state_file='state_snapshot.json', log_file=None):
         }
     }
 
-    with open(state_file, 'w', encoding='utf-8') as f:
-        json.dump(state, f, indent=4)
+    written_count = 0
+    for sf in possible_state_files:
+        try:
+            d = os.path.dirname(sf)
+            if d:
+                os.makedirs(d, exist_ok=True)
+            with open(sf, 'w', encoding='utf-8') as f:
+                json.dump(state, f, indent=4)
+            written_count += 1
+        except Exception:
+            pass
 
     print(f"Successfully synced state: Parsed {len(state['closed_legs'])} closed legs. Account Realized PnL: INR {state['realized_pnl']:,.2f}")
 
