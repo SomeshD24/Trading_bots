@@ -301,6 +301,7 @@ if state.get("legs"):
             "Future Side": future_s,
             "Trigger Price": trigger_p,
             "Exit Price": exit_price,
+            "Original Entry": ldata.get("original_entry_price", ldata.get("entry_price")),
             "Future Entry": ldata.get("entry_price"),
             "Future Live": fut_price,
             "Short Opt": format_opt_sym(ldata.get("short_opt")),

@@ -129,3 +129,4 @@ class BotScheduler:
             self.bot.stop()
         else:
             logger.info("Market Close skipped (Weekend/Holiday).")
+

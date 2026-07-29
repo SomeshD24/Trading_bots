@@ -35,14 +35,14 @@ def log_order(order_id, symbol, side, qty, status, price=None):
             writer.writerow(["timestamp", "order_id", "symbol", "side", "qty", "status", "price"])
         writer.writerow([datetime.now().isoformat(), order_id, symbol, side, qty, status, price])
 
-def log_rollover(old_entry, new_entry, old_strike, new_strike, old_sym, new_sym, target_expiry):
+def log_rollover(leg_id, rollover_type, old_entry, new_entry, old_strike, new_strike, old_sym, new_sym, target_expiry):
     filename = os.path.join(LOG_DIR, "rollover_log.csv")
     file_exists = os.path.isfile(filename)
     with open(filename, 'a', newline='') as f:
         writer = csv.writer(f)
         if not file_exists:
-            writer.writerow(["timestamp", "old_entry", "new_entry", "old_strike", "new_strike", "old_sym", "new_sym", "target_expiry"])
-        writer.writerow([datetime.now().isoformat(), old_entry, new_entry, old_strike, new_strike, old_sym, new_sym, target_expiry])
+            writer.writerow(["timestamp", "leg_id", "type", "old_entry", "new_entry", "old_strike", "new_strike", "old_sym", "new_sym", "target_expiry"])
+        writer.writerow([datetime.now().isoformat(), leg_id, rollover_type, old_entry, new_entry, old_strike, new_strike, old_sym, new_sym, target_expiry])
 
 def log_leg(leg_id, leg, pnl=0.0):
     filename = os.path.join(LOG_DIR, "leg_log.csv")
