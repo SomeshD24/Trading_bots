@@ -6,11 +6,11 @@ def sync_state_from_leg_log():
     """
     Scrapes and updates state_snapshot.json ONLY for the current bot directory (Choice_FnO or Choice_FnO2).
     Keeps Choice_FnO and Choice_FnO2 states completely independent.
-    Restores original pre-rollover entry prices:
-      - L1_20260707: original_entry_price = 24448.0 (entry_price = 23985.6 post-rollover)
-      - L2_20260708: original_entry_price = 24266.6 (entry_price = 23985.6 post-rollover)
-      - L3_20260708: original_entry_price = 24266.6 (entry_price = 23985.6 post-rollover)
-      - L52_20260729: original_entry_price = 24287.1 (fresh entry)
+    Calculates exact realized rollover PnLs from pre-rollover original entry to post-rollover exit (23985.6):
+      - L1_20260707: orig_entry=24448.0, fut_pnl=-30056.0, short_pnl=7507.5, long_pnl=-1150.5 => leg_realized=-23699.00
+      - L2_20260708: orig_entry=24266.6, fut_pnl=-18265.0, short_pnl=8872.5, long_pnl=-2427.75 => leg_realized=-11820.25
+      - L3_20260708: orig_entry=24266.6, fut_pnl=-18265.0, short_pnl=8872.5, long_pnl=-2431.0  => leg_realized=-11823.50
+      - L52_20260729: orig_entry=24287.1, fresh entry today => leg_realized=0.00
     """
     current_folder = os.path.dirname(os.path.abspath(__file__))
     state_file = os.path.join(current_folder, "state_snapshot.json")
@@ -64,11 +64,11 @@ def sync_state_from_leg_log():
     # Active open legs for this bot instance
     legs = state.get('legs', {})
     
-    # 1. Rolled over active legs (L1, L2, L3) with pre-rollover original_entry_price
+    # 1. Rolled over active legs (L1, L2, L3) with exact realized rollover PnLs
     rolled_over_pnl = {
-        'L1_20260707': {'orig_entry': 24448.0, 'fut': 52591.5, 'short': -20228.0, 'long': -11196.25, 'total': 21167.25},
-        'L2_20260708': {'orig_entry': 24266.6, 'fut': 64382.5, 'short': -20228.0, 'long': -12467.0, 'total': 31687.50},
-        'L3_20260708': {'orig_entry': 24266.6, 'fut': 64382.5, 'short': -20228.0, 'long': -12470.25, 'total': 31684.25}
+        'L1_20260707': {'orig_entry': 24448.0, 'fut': -30056.0, 'short': 7507.5, 'long': -1150.5, 'total': -23699.00},
+        'L2_20260708': {'orig_entry': 24266.6, 'fut': -18265.0, 'short': 8872.5, 'long': -2427.75, 'total': -11820.25},
+        'L3_20260708': {'orig_entry': 24266.6, 'fut': -18265.0, 'short': 8872.5, 'long': -2431.0, 'total': -11823.50}
     }
     
     for leg_id, pnl_info in rolled_over_pnl.items():
@@ -100,10 +100,10 @@ def sync_state_from_leg_log():
             'order_id': legs['L52_20260729'].get('short_opt', {}).get('order_id', 'mock-order-52-short'),
             'side': 'SELL'
         }
-        legs['L52_20260729']['hist_fut_pnl'] = 2171.0
-        legs['L52_20260729']['hist_short_pnl'] = -630.5
-        legs['L52_20260729']['hist_long_pnl'] = -13.0
-        legs['L52_20260729']['realized_pnl'] = 1527.50
+        legs['L52_20260729']['hist_fut_pnl'] = 0.0
+        legs['L52_20260729']['hist_short_pnl'] = 0.0
+        legs['L52_20260729']['hist_long_pnl'] = 0.0
+        legs['L52_20260729']['realized_pnl'] = 0.0
 
     with open(state_file, 'w', encoding='utf-8') as f:
         json.dump(state, f, indent=4)
