@@ -2,9 +2,7 @@ streamlit
 pandas
 numpy
 python-dotenv
-websocket-client
+websockets
 requests
 pytz
 schedule
-pycryptodome
-streamlit-autorefresh

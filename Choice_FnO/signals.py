@@ -117,6 +117,7 @@ class SignalProcessor:
         leg_data = {
             "trigger_price": trigger_price,
             "entry_price": entry_price,
+            "original_entry_price": entry_price,
             "future_side": future_side,
             "future_order_id": fut_order["order_id"],
             "monthly_expiry": state["monthly_expiry"],

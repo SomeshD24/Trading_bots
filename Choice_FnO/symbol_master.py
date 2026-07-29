@@ -60,10 +60,13 @@ class SymbolMaster:
                         except Exception:
                             pass
                             
-                    # Just map the exact SecDesc for everything in derivatives
+                    # Just map the exact SecDesc for everything in derivatives (both raw and without spaces)
                     if sec_desc:
-                        self.symbol_to_token[sec_desc.strip()] = token.strip()
-                        self.token_to_symbol[token.strip()] = sec_desc.strip()
+                        raw_sym = sec_desc.strip()
+                        no_space_sym = raw_sym.replace(" ", "")
+                        self.symbol_to_token[raw_sym] = token.strip()
+                        self.symbol_to_token[no_space_sym] = token.strip()
+                        self.token_to_symbol[token.strip()] = raw_sym
                         
                         # Store in structured option chain map for lookup
                         if instrument == 'OPTIDX' and symbol == 'NIFTY':

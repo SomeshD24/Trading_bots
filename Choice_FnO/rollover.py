@@ -2,6 +2,41 @@ import datetime
 from logger import log_rollover
 from option_selector import round_nearest
 
+def format_full_option_symbol(symbol_master, expiry_date_str, strike, opt_type):
+    if not expiry_date_str or not strike or not opt_type:
+        return "N/A"
+    if symbol_master:
+        t = symbol_master.get_option_token(expiry_date_str, strike, opt_type)
+        if t:
+            sym = symbol_master.get_symbol(t)
+            if sym and sym != "UNKNOWN_SYMBOL":
+                return sym
+    try:
+        exp_dt = datetime.datetime.strptime(expiry_date_str, "%Y-%m-%d")
+        exp_str = exp_dt.strftime("%d%b%y").upper()
+        return f"NIFTY {exp_str} {strike} {opt_type}"
+    except Exception:
+        return f"NIFTY {strike} {opt_type}"
+
+def format_full_future_symbol(symbol_master, expiry_date_str):
+    if not expiry_date_str:
+        return "N/A"
+    try:
+        exp_dt = datetime.datetime.strptime(expiry_date_str, "%Y-%m-%d")
+        sym1 = f"NIFTY{exp_dt.strftime('%y%b').upper()}FUT"
+        sym2 = f"NIFTY {exp_dt.strftime('%d%b%y').upper()} FUT"
+        if symbol_master:
+            for s in [sym1, sym2]:
+                t = symbol_master.get_token(s)
+                if t:
+                    sym = symbol_master.get_symbol(t)
+                    if sym and sym != "UNKNOWN_SYMBOL":
+                        return sym
+        exp_str = exp_dt.strftime("%d%b%y").upper()
+        return f"NIFTY {exp_str} FUT"
+    except Exception:
+        return "NIFTY_FUT"
+
 class RolloverManager:
     def __init__(self, state_manager, option_selector, order_manager):
         self.state_manager = state_manager
@@ -56,8 +91,12 @@ class RolloverManager:
             new_long_opt["order_id"] = new_long_order["order_id"]
             new_long_opt["side"] = "BUY"
             
-            log_rollover(old_long['premium'], new_long_opt['premium'], old_long['strike'], new_long_opt['strike'], 
-                         f"NIFTY_{old_long['strike']}_{old_long['type']}", f"NIFTY_{new_long_opt['strike']}_{new_long_opt['type']}", new_weekly_expiry)
+            sm = self.option_selector.feed.symbol_master if self.option_selector.feed else None
+            old_long_full = format_full_option_symbol(sm, old_long['expiry'], old_long['strike'], old_long['type'])
+            new_long_full = format_full_option_symbol(sm, new_long_opt['expiry'], new_long_opt['strike'], new_long_opt['type'])
+            
+            log_rollover(leg_id, "OPTION", old_long['premium'], new_long_opt['premium'], old_long['strike'], new_long_opt['strike'], 
+                         old_long_full, new_long_full, new_weekly_expiry)
             
             leg["long_opt"] = new_long_opt
             self.state_manager.update_leg(leg_id, leg)
@@ -80,14 +119,29 @@ class RolloverManager:
         # 1. Calculate price shift and new future entry price
         shift = 0
         import datetime as dt
+        new_fut_ltp = None
         try:
             m_exp = dt.datetime.strptime(next_month_expiry, "%Y-%m-%d")
-            new_fut_sym = f"NIFTY{m_exp.strftime('%y%b').upper()}FUT"
-            rest_prices = self.option_selector.feed.get_multiple_touchline([new_fut_sym])
-            new_fut_ltp = rest_prices.get(new_fut_sym)
+            sym1 = f"NIFTY{m_exp.strftime('%y%b').upper()}FUT"
+            sym2 = f"NIFTY {m_exp.strftime('%d %b %Y').upper()} FUT"
+            sym3 = f"NIFTY {m_exp.strftime('%y %b').upper()} FUT"
+            fut_candidates = [sym1, sym2, sym3]
+            
+            if self.option_selector.feed:
+                rest_prices = self.option_selector.feed.get_multiple_touchline(fut_candidates)
+                for sym in fut_candidates:
+                    if rest_prices.get(sym):
+                        new_fut_ltp = rest_prices.get(sym)
+                        break
+                    if self.option_selector.feed.prices.get(sym):
+                        new_fut_ltp = self.option_selector.feed.prices.get(sym)
+                        break
+
             if new_fut_ltp:
                 shift = round_nearest(new_fut_ltp - current_ltp, 10)
                 print(f"Rollover Shift calculated: {shift} (Old LTP: {current_ltp}, New LTP: {new_fut_ltp})")
+            else:
+                print(f"Could not fetch live LTP for next monthly future ({sym1}). Shift is 0.")
         except Exception as e:
             print(f"Error calculating rollover shift: {e}")
             new_fut_ltp = None
@@ -95,12 +149,13 @@ class RolloverManager:
         new_entry = new_fut_ltp if new_fut_ltp else (current_ltp + shift)
 
         # 2. Select unified new short option for next month (same strike across all rolled legs)
+        # Search starts from ATM ± 6 strikes (i=6) towards ATM (i=0) for first option with premium > 100
         unified_new_short_opt = None
         if direction != "FLAT":
             atm = self.option_selector.get_atm_strike(new_entry)
             opt_type = "PE" if direction == "ABOVE" else "CE"
             step = -50 if direction == "ABOVE" else 50
-            target_strikes = [atm + (i * step) for i in range(30, 5, -1)]
+            target_strikes = [atm + (i * step) for i in range(6, -1, -1)]
 
             s_strike, s_prem = self.option_selector._evaluate_short_opt_rest(target_strikes, opt_type, next_month_expiry)
             if s_strike is not None:
@@ -108,8 +163,8 @@ class RolloverManager:
                     "strike": s_strike, "type": opt_type, "expiry": next_month_expiry, "premium": s_prem
                 }
             else:
-                # Fallback for paper trading / mock feed
-                base_strike = atm - 300 if direction == "ABOVE" else atm + 300
+                # Fallback starting from ATM ± 6 strikes (300pts OTM)
+                base_strike = atm + (6 * step)
                 unified_new_short_opt = {
                     "strike": base_strike, "type": opt_type, "expiry": next_month_expiry, "premium": 150.0
                 }
@@ -123,6 +178,10 @@ class RolloverManager:
             if leg_monthly_exp == current_month_expiry:
                 old_short = leg.get("short_opt", {})
                 
+                # Preserve original entry price before updating to new entry
+                if "original_entry_price" not in leg:
+                    leg["original_entry_price"] = leg.get("entry_price")
+
                 # Construct proper contract symbols for futures
                 try:
                     m_old = dt.datetime.strptime(leg_monthly_exp, "%Y-%m-%d")
@@ -172,6 +231,12 @@ class RolloverManager:
                     self.option_selector.feed.subscribe_symbols([new_fut_sym])
                     self.option_selector.feed.active_symbols.add(new_fut_sym)
 
+                # Log FUTURE Rollover
+                sm = self.option_selector.feed.symbol_master if self.option_selector.feed else None
+                old_fut_full = format_full_future_symbol(sm, leg_monthly_exp)
+                new_fut_full = format_full_future_symbol(sm, next_month_expiry)
+                log_rollover(leg_id, "FUTURE", leg['entry_price'], new_entry, "N/A", "N/A", old_fut_full, new_fut_full, next_month_expiry)
+
                 # Open unified new short_opt for this leg if old short_opt was expiring
                 if old_short.get("expiry") == current_month_expiry and unified_new_short_opt:
                     new_short_opt = dict(unified_new_short_opt)
@@ -185,12 +250,11 @@ class RolloverManager:
                     new_short_opt["side"] = "SELL"
                     leg["short_opt"] = new_short_opt
 
-                # Update State
-                old_short_str = f"NIFTY_{old_short['strike']}_{old_short['type']}" if old_short else "N/A"
-                new_short_str = f"NIFTY_{leg['short_opt']['strike']}_{leg['short_opt']['type']}" if leg.get("short_opt") else "N/A"
-                log_rollover(leg["entry_price"], new_entry, old_short.get("strike", 0), leg.get("short_opt", {}).get("strike", 0), 
-                             old_short_str, new_short_str, next_month_expiry)
-                
+                    old_short_full = format_full_option_symbol(sm, old_short.get('expiry'), old_short.get('strike'), old_short.get('type'))
+                    new_short_full = format_full_option_symbol(sm, new_short_opt.get('expiry'), new_short_opt.get('strike'), new_short_opt.get('type'))
+                    log_rollover(leg_id, "OPTION", old_short.get('premium'), new_short_opt['premium'], old_short.get('strike'), new_short_opt['strike'], 
+                                 old_short_full, new_short_full, next_month_expiry)
+
                 leg["entry_price"] = new_entry
                 leg["trigger_price"] = new_trigger
                 leg["future_order_id"] = new_fut_order["order_id"]
@@ -216,3 +280,4 @@ class RolloverManager:
                 pass
                 
             self.state_manager.save()
+

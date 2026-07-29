@@ -114,17 +114,15 @@ class OptionSelector:
     def select_short_opt(self, future_ltp, direction, current_monthly_expiry, next_monthly_expiry):
         """
         short_opt: Strike = ATM ± 6 strikes (300pts OTM, put if ABOVE / call if BELOW).
-        Start from ATM towards ATM ± 6 taking first one with premium > 100.
+        Start searching from ATM ± 6 strikes towards ATM taking first option with premium > 100.
         If not found, go to next month and repeat.
         """
         atm = self.get_atm_strike(future_ltp)
         opt_type = "PE" if direction == "ABOVE" else "CE"
         step = -50 if direction == "ABOVE" else 50
         
-        # Check from furthest OTM (ATM ± 30) down to base (ATM ± 6)
-        # The first one with premium > 100 will naturally be the furthest OTM option > 100.
-        # If none are > 100 (meaning even ATM ± 6 is < 100), it returns None and falls back to next month.
-        target_strikes = [atm + (i * step) for i in range(30, 5, -1)]
+        # Start searching from ATM ± 6 strikes (i=6) towards ATM (i=0)
+        target_strikes = [atm + (i * step) for i in range(6, -1, -1)]
 
         strike, premium = self._evaluate_short_opt_rest(target_strikes, opt_type, current_monthly_expiry)
         if strike is not None:
@@ -135,7 +133,7 @@ class OptionSelector:
                 "premium": premium
             }
 
-        # Else, next month, same strikes
+        # Else, next month, same strikes starting from ATM ± 6
         strike, premium = self._evaluate_short_opt_rest(target_strikes, opt_type, next_monthly_expiry)
         if strike is not None:
             return {
