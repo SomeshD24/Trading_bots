@@ -6,7 +6,11 @@ def sync_state_from_leg_log(state_file='state_snapshot.json', log_file=None):
     """
     Parses leg_log.csv (from logs/leg_log.csv or leg_log.csv) to automatically recalculate
     and restore account realized PnL, closed legs history, and active open leg cumulative PnLs.
-    Preserves exact pre-rollover cumulative short option PnL (-28772.25) and realized leg PnLs.
+    Sets exact historical leg PnLs:
+      - L1: fut=52591.5, short=-20228.0, long=-11196.25 => realized=21167.25
+      - L2: fut=64382.5, short=-20228.0, long=-12467.0  => realized=31687.50
+      - L3: fut=64382.5, short=-20228.0, long=-12470.25 => realized=31684.25
+      - L52: fut=2171.0, short=-630.5, long=-13.0      => realized=1527.50
     """
     possible_logs = [
         log_file,
@@ -54,7 +58,7 @@ def sync_state_from_leg_log(state_file='state_snapshot.json', log_file=None):
     state['realized_pnl'] = total_realized_pnl if total_realized_pnl > 0 else state.get('realized_pnl', 304850.0)
     state['total_legs_opened'] = max(total_legs_count, state.get('total_legs_opened', 52))
 
-    # Active legs preserving exact cumulative pre-rollover PnLs
+    # Open active legs with exact historical PnL breakdown
     state['legs'] = {
         'L1_20260707': {
             'trigger_price': 24450,
@@ -81,10 +85,10 @@ def sync_state_from_leg_log(state_file='state_snapshot.json', log_file=None):
             },
             'status': 'OPEN',
             'entry_time': '2026-07-07T15:12:16.617306',
-            'hist_fut_pnl': 30751.5,
-            'hist_short_pnl': -28772.25,
-            'hist_long_pnl': -1589.25,
-            'realized_pnl': 390.0
+            'hist_fut_pnl': 52591.5,
+            'hist_short_pnl': -20228.0,
+            'hist_long_pnl': -11196.25,
+            'realized_pnl': 21167.25
         },
         'L2_20260708': {
             'trigger_price': 24400,
@@ -111,10 +115,10 @@ def sync_state_from_leg_log(state_file='state_snapshot.json', log_file=None):
             },
             'status': 'OPEN',
             'entry_time': '2026-07-08T10:18:48.802286',
-            'hist_fut_pnl': 42542.5,
-            'hist_short_pnl': -28772.25,
-            'hist_long_pnl': -2863.25,
-            'realized_pnl': 10907.0
+            'hist_fut_pnl': 64382.5,
+            'hist_short_pnl': -20228.0,
+            'hist_long_pnl': -12467.0,
+            'realized_pnl': 31687.5
         },
         'L3_20260708': {
             'trigger_price': 24350,
@@ -141,10 +145,10 @@ def sync_state_from_leg_log(state_file='state_snapshot.json', log_file=None):
             },
             'status': 'OPEN',
             'entry_time': '2026-07-08T10:18:49.766167',
-            'hist_fut_pnl': 42542.5,
-            'hist_short_pnl': -28772.25,
-            'hist_long_pnl': -2866.5,
-            'realized_pnl': 10903.75
+            'hist_fut_pnl': 64382.5,
+            'hist_short_pnl': -20228.0,
+            'hist_long_pnl': -12470.25,
+            'realized_pnl': 31684.25
         },
         'L52_20260729': {
             'trigger_price': 24300,
@@ -171,10 +175,10 @@ def sync_state_from_leg_log(state_file='state_snapshot.json', log_file=None):
             },
             'status': 'OPEN',
             'entry_time': '2026-07-29T07:29:58.025517',
-            'hist_fut_pnl': -71.5,
-            'hist_short_pnl': 6.5,
-            'hist_long_pnl': 6.5,
-            'realized_pnl': -58.5
+            'hist_fut_pnl': 2171.0,
+            'hist_short_pnl': -630.5,
+            'hist_long_pnl': -13.0,
+            'realized_pnl': 1527.5
         }
     }
 
