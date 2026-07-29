@@ -2,52 +2,32 @@ import os
 import csv
 import json
 
-def sync_state_from_leg_log(state_file=None, log_file=None):
+def sync_state_from_leg_log():
     """
-    Parses leg_log.csv (from logs/leg_log.csv or leg_log.csv) to automatically recalculate
-    and restore account realized PnL, closed legs history, and active open leg cumulative PnLs.
-    Dynamically resolves paths whether run from repo root or subfolder.
+    Scraped and updates state_snapshot.json ONLY for the current bot directory (Choice_FnO or Choice_FnO2).
+    Keeps Choice_FnO and Choice_FnO2 states completely independent.
+    Treats L1, L2, L3 as rolled over legs and L52 as a fresh recent leg (no rollover).
     """
-    script_dir = os.path.dirname(os.path.abspath(__file__))
+    current_folder = os.path.dirname(os.path.abspath(__file__))
+    state_file = os.path.join(current_folder, "state_snapshot.json")
     
-    # 1. Resolve state files
-    possible_state_files = []
-    if state_file:
-        possible_state_files.append(state_file)
-    possible_state_files.extend([
-        os.path.join(script_dir, "state_snapshot.json"),
-        os.path.join("Choice_FnO", "state_snapshot.json"),
-        os.path.join("Choice_FnO2", "state_snapshot.json"),
-        "state_snapshot.json"
-    ])
-
-    # 2. Resolve log files
-    possible_logs = []
-    if log_file:
-        possible_logs.append(log_file)
-    possible_logs.extend([
-        os.path.join(script_dir, "logs", "leg_log.csv"),
-        os.path.join(script_dir, "leg_log.csv"),
-        os.path.join("Choice_FnO", "logs", "leg_log.csv"),
-        os.path.join("Choice_FnO", "leg_log.csv"),
-        os.path.join("Choice_FnO2", "logs", "leg_log.csv"),
-        os.path.join("Choice_FnO2", "leg_log.csv"),
-        os.path.join("logs", "leg_log.csv"),
-        "leg_log.csv"
-    ])
+    possible_logs = [
+        os.path.join(current_folder, "logs", "leg_log.csv"),
+        os.path.join(current_folder, "leg_log.csv")
+    ]
     
     target_log = None
     for p in possible_logs:
-        if p and os.path.exists(p):
+        if os.path.exists(p):
             target_log = p
             break
 
     closed_legs = []
     total_realized_pnl = 0.0
-    total_legs_count = 52
+    total_legs_count = 0
 
     if target_log:
-        print(f"Reading trade history from {target_log}...")
+        print(f"[{os.path.basename(current_folder)}] Reading trade history from {target_log}...")
         with open(target_log, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
@@ -61,165 +41,66 @@ def sync_state_from_leg_log(state_file=None, log_file=None):
                     })
                     total_realized_pnl += pnl
 
-    # Load existing state if available
+    # Load current bot's state_snapshot.json
     state = {}
-    target_state_file = possible_state_files[0]
-    for sf in possible_state_files:
-        if os.path.exists(sf):
-            try:
-                with open(sf, 'r', encoding='utf-8') as f:
-                    state = json.load(f)
-                target_state_file = sf
-                break
-            except Exception:
-                pass
+    if os.path.exists(state_file):
+        with open(state_file, 'r', encoding='utf-8') as f:
+            state = json.load(f)
 
     state['base'] = state.get('base', 24500)
     state['direction'] = state.get('direction', 'BELOW')
-    state['monthly_expiry'] = '2026-08-25'
-    state['next_monthly_expiry'] = '2026-09-29'
-    state['weekly_expiry'] = '2026-08-04'
-    state['closed_legs'] = closed_legs if closed_legs else state.get('closed_legs', [])
-    state['realized_pnl'] = total_realized_pnl if total_realized_pnl > 0 else state.get('realized_pnl', 304850.0)
-    state['total_legs_opened'] = max(total_legs_count, state.get('total_legs_opened', 52))
+    state['monthly_expiry'] = state.get('monthly_expiry', '2026-08-25')
+    state['next_monthly_expiry'] = state.get('next_monthly_expiry', '2026-09-29')
+    state['weekly_expiry'] = state.get('weekly_expiry', '2026-08-04')
+    if closed_legs:
+        state['closed_legs'] = closed_legs
+        state['realized_pnl'] = total_realized_pnl
+    state['total_legs_opened'] = max(total_legs_count, state.get('total_legs_opened', len(closed_legs)))
 
-    # Open active legs with exact historical PnL breakdown
-    state['legs'] = {
-        'L1_20260707': {
-            'trigger_price': 24450,
-            'entry_price': 23985.6,
-            'original_entry_price': 23985.6,
-            'future_side': 'LONG',
-            'future_order_id': '9ca2fb5c-20ec-4e61-bc81-93e0c06f2214',
-            'monthly_expiry': '2026-08-25',
-            'short_opt': {
-                'strike': 24750,
-                'type': 'CE',
-                'expiry': '2026-08-25',
-                'premium': 107.05,
-                'order_id': 'e9337b01-ffb8-4957-8293-ab4d9a129852',
-                'side': 'SELL'
-            },
-            'long_opt': {
-                'strike': 23150,
-                'type': 'PE',
-                'expiry': '2026-08-04',
-                'premium': 11.050000190734863,
-                'order_id': 'fd64c0cb-3678-40ab-aa99-3e243a0673bc',
-                'side': 'BUY'
-            },
-            'status': 'OPEN',
-            'entry_time': '2026-07-07T15:12:16.617306',
-            'hist_fut_pnl': 52591.5,
-            'hist_short_pnl': -20228.0,
-            'hist_long_pnl': -11196.25,
-            'realized_pnl': 21167.25
-        },
-        'L2_20260708': {
-            'trigger_price': 24400,
-            'entry_price': 23985.6,
-            'original_entry_price': 23985.6,
-            'future_side': 'LONG',
-            'future_order_id': '28db26c2-7a11-449c-8c29-96f68d901705',
-            'monthly_expiry': '2026-08-25',
-            'short_opt': {
-                'strike': 24750,
-                'type': 'CE',
-                'expiry': '2026-08-25',
-                'premium': 107.05,
-                'order_id': '5887b405-97a5-4e7a-8926-490f97fff55a',
-                'side': 'SELL'
-            },
-            'long_opt': {
-                'strike': 23150,
-                'type': 'PE',
-                'expiry': '2026-08-04',
-                'premium': 11.0,
-                'order_id': '21e2341e-61dd-4607-a9d5-a89084f074ad',
-                'side': 'BUY'
-            },
-            'status': 'OPEN',
-            'entry_time': '2026-07-08T10:18:48.802286',
-            'hist_fut_pnl': 64382.5,
-            'hist_short_pnl': -20228.0,
-            'hist_long_pnl': -12467.0,
-            'realized_pnl': 31687.5
-        },
-        'L3_20260708': {
-            'trigger_price': 24350,
-            'entry_price': 23985.6,
-            'original_entry_price': 23985.6,
-            'future_side': 'LONG',
-            'future_order_id': 'e28d0e6a-caa5-4fab-8007-e6836ae6cb8b',
-            'monthly_expiry': '2026-08-25',
-            'short_opt': {
-                'strike': 24750,
-                'type': 'CE',
-                'expiry': '2026-08-25',
-                'premium': 107.05,
-                'order_id': '1da6573a-e9f4-466e-bdbc-1a637de662c4',
-                'side': 'SELL'
-            },
-            'long_opt': {
-                'strike': 23150,
-                'type': 'PE',
-                'expiry': '2026-08-04',
-                'premium': 11.0,
-                'order_id': '7b9cfe6b-14e5-4093-abd7-f2c7854215c5',
-                'side': 'BUY'
-            },
-            'status': 'OPEN',
-            'entry_time': '2026-07-08T10:18:49.766167',
-            'hist_fut_pnl': 64382.5,
-            'hist_short_pnl': -20228.0,
-            'hist_long_pnl': -12470.25,
-            'realized_pnl': 31684.25
-        },
-        'L52_20260729': {
-            'trigger_price': 24300,
-            'entry_price': 24287.1,
-            'original_entry_price': 24287.1,
-            'future_side': 'LONG',
-            'future_order_id': 'mock-order-52',
-            'monthly_expiry': '2026-08-25',
-            'short_opt': {
-                'strike': 24750,
-                'type': 'CE',
-                'expiry': '2026-08-25',
-                'premium': 107.05000305175781,
-                'order_id': 'mock-order-52-short',
-                'side': 'SELL'
-            },
-            'long_opt': {
-                'strike': 23600,
-                'type': 'PE',
-                'expiry': '2026-08-04',
-                'premium': 11.449999809265137,
-                'order_id': 'mock-order-52-long',
-                'side': 'BUY'
-            },
-            'status': 'OPEN',
-            'entry_time': '2026-07-29T07:29:58.025517',
-            'hist_fut_pnl': 2171.0,
-            'hist_short_pnl': -630.5,
-            'hist_long_pnl': -13.0,
-            'realized_pnl': 1527.5
-        }
+    # Active open legs for this bot instance
+    legs = state.get('legs', {})
+    
+    # 1. Rolled over active legs (L1, L2, L3)
+    rolled_over_pnl = {
+        'L1_20260707': {'fut': 52591.5, 'short': -20228.0, 'long': -11196.25, 'total': 21167.25},
+        'L2_20260708': {'fut': 64382.5, 'short': -20228.0, 'long': -12467.0, 'total': 31687.50},
+        'L3_20260708': {'fut': 64382.5, 'short': -20228.0, 'long': -12470.25, 'total': 31684.25}
     }
+    
+    for leg_id, pnl_info in rolled_over_pnl.items():
+        if leg_id in legs:
+            legs[leg_id]['short_opt'] = {
+                'strike': 24750,
+                'type': 'CE',
+                'expiry': '2026-08-25',
+                'premium': 107.05,
+                'order_id': legs[leg_id].get('short_opt', {}).get('order_id', 'short-opt-id'),
+                'side': 'SELL'
+            }
+            legs[leg_id]['hist_fut_pnl'] = pnl_info['fut']
+            legs[leg_id]['hist_short_pnl'] = pnl_info['short']
+            legs[leg_id]['hist_long_pnl'] = pnl_info['long']
+            legs[leg_id]['realized_pnl'] = pnl_info['total']
 
-    written_count = 0
-    for sf in possible_state_files:
-        try:
-            d = os.path.dirname(sf)
-            if d:
-                os.makedirs(d, exist_ok=True)
-            with open(sf, 'w', encoding='utf-8') as f:
-                json.dump(state, f, indent=4)
-            written_count += 1
-        except Exception:
-            pass
+    # 2. Fresh recent leg L52 (no rollover)
+    if 'L52_20260729' in legs:
+        legs['L52_20260729']['short_opt'] = {
+            'strike': 24750,
+            'type': 'CE',
+            'expiry': '2026-08-25',
+            'premium': 107.05000305175781,
+            'order_id': legs['L52_20260729'].get('short_opt', {}).get('order_id', 'mock-order-52-short'),
+            'side': 'SELL'
+        }
+        legs['L52_20260729']['hist_fut_pnl'] = 2171.0
+        legs['L52_20260729']['hist_short_pnl'] = -630.5
+        legs['L52_20260729']['hist_long_pnl'] = -13.0
+        legs['L52_20260729']['realized_pnl'] = 1527.50
 
-    print(f"Successfully synced state: Parsed {len(state['closed_legs'])} closed legs. Account Realized PnL: INR {state['realized_pnl']:,.2f}")
+    with open(state_file, 'w', encoding='utf-8') as f:
+        json.dump(state, f, indent=4)
+
+    print(f"[{os.path.basename(current_folder)}] Successfully synced state in {state_file}! Parsed {len(state.get('closed_legs', []))} closed legs. Realized PnL: INR {state.get('realized_pnl', 0.0):,.2f}")
 
 if __name__ == "__main__":
     sync_state_from_leg_log()
